@@ -207,10 +207,6 @@ function sslsocket.write(self, data, timeout)
     end
 end
 
-function sslsocket.getaddrinfo(self)
-    return self.sock:getaddrinfo()
-end
-
 function sslsocket.shutdown(self, timeout)
     local start = clock.time()
 
@@ -539,10 +535,6 @@ return {
 
     tcp_connect = tcp_connect,
     tcp_server = tcp_server,
-
-    SHUT_RDWR = socket.SHUT_RDWR,
-    SHUT_RD = socket.SHUT_RD,
-    SHUT_WR = socket.SHUT_WR,
 
     wrap_accepted_socket = wrap_accepted_socket,
     accept = accept,

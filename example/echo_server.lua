@@ -26,6 +26,7 @@ sslsocket.tcp_server(
     '0.0.0.0', 8443,
     function(client, from)
         log.info('client accepted %s', yaml.encode(from))
+        log.info('getaddrinfo: %s', yaml.encode(client:getaddrinfo()))
         local buf, err = client:read(10)
         if buf == nil then
             log.info('client error %s', err)
