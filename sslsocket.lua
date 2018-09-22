@@ -11,7 +11,6 @@ local clock = require('clock')
 local errno = require('errno')
 
 ffi.cdef[[
-
  typedef struct SSL_METHOD {} SSL_METHOD;
  typedef struct SSL_CTX {} SSL_CTX;
  typedef struct SSL {} SSL;
@@ -58,6 +57,8 @@ ffi.cdef[[
  SSL_CTX *SSL_CTX_new(const SSL_METHOD *method);
  int SSL_CTX_up_ref(SSL_CTX *ctx);
  void SSL_CTX_free(SSL_CTX *);
+
+ int SSL_shutdown(SSL *ssl);
 
  int SSL_CTX_use_certificate_file(SSL_CTX *ctx, const char *file, int type);
  int SSL_CTX_use_PrivateKey_file(SSL_CTX *ctx, const char *file, int type);
@@ -210,9 +211,50 @@ function sslsocket.getaddrinfo(self)
     return self.sock:getaddrinfo()
 end
 
-function sslsocket.shutdown(self, how)
-    self.sock:shutdown(how)
-    return self.sock:shutdown(how)
+function sslsocket.shutdown(self, timeout)
+    local start = clock.time()
+
+    ffi.C.ERR_clear_error()
+    local rc = ffi.C.SSL_shutdown(self.ssl) -- ignore result
+    while rc < 0 do
+        local mode
+        local ssl_error = ffi.C.SSL_get_error(self.ssl, num);
+        if ssl_error == SSL_ERROR_WANT_WRITE then
+            mode = WAIT_FOR_WRITE
+        elseif ssl_error == SSL_ERROR_WANT_READ then
+            mode = WAIT_FOR_READ
+        elseif ssl_error == SSL_ERROR_SYSCALL then
+            return nil, self.sock:error()
+        elseif ssl_error == SSL_ERROR_ZERO_RETURN then
+            return nil, 'TLS channel closed'
+        else
+            local error_string = ffi.string(ffi.C.ERR_error_string(ssl_error, nil))
+            return nil, error_string
+        end
+
+        local waited = nil
+        if mode == WAIT_FOR_READ then
+            waited = self.sock:readable(slice_wait(timeout, start))
+        elseif mode == WAIT_FOR_WRITE then
+            waited = self.sock:writable(slice_wait(timeout, start))
+        else
+            assert(false)
+        end
+
+        if not waited then
+            self.sock._errno = errno.ETIMEDOUT
+            return nil, 'Timeout exceeded'
+        end
+
+        rc = ffi.C.SSL_shutdown(self.ssl) -- ignore result
+    end
+    -- TODO Is this possible case for async socket?
+    if rc == 0 then
+        ffi.C.SSL_shutdown(self.ssl)
+    end
+
+    self.sock:shutdown(socket.SHUT_RDWR)
+    return true
 end
 
 function sslsocket.close(self)
@@ -468,25 +510,25 @@ end
 local function tcp_server(host, port, handler_function, timeout, sslctx)
     sslctx = sslctx or default_ctx
 
-    local handler = function (sock, from)
+    local wrapper = function (sock, from)
         local self, err = wrap_accepted_socket(sock, sslctx)
         if not self then
-            log.info(err)
+            log.info('sslsocket.tcp_server error: %s ', err)
         else
             handler_function(self, from)
         end
     end
 
-    return socket.tcp_server(host, port, handler, timeout)
+    return socket.tcp_server(host, port, wrapper, timeout)
 end
 
-local function accept(server, ctx)
+local function accept(server, sslctx)
     local sock = server:accept()
     if sock == nil then
         return nil
     end
 
-    return wrap_accepted_socket(sock, ctx)
+    return wrap_accepted_socket(sock, sslctx)
 end
 
 return {
