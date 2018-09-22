@@ -1,3 +1,22 @@
+- [Library to use ssl/tls](#library-to-use-ssltls)
+  * [Installation](#installation)
+    + [master](#master)
+  * [Example](#example)
+    + [Echo server](#echo-server)
+  * [API](#api)
+    + [`sslsocket.methods`](#sslsocketmethods)
+    + [`sslsocket.ctx(method)`](#sslsocketctxmethod)
+    + [`sslsocket.ctx_use_private_key_file(ctx, pem_file)`](#sslsocketctx_use_private_key_filectx-pem_file)
+    + [`sslsocket.ctx_use_certificate_file(ctx, pem_file)`](#sslsocketctx_use_certificate_filectx-pem_file)
+    + [`sslsocket.tcp_connect(host, port, timeout, ctx)`](#sslsockettcp_connecthost-port-timeout-ctx)
+    + [`sslsocket.tcp_server(host, port, handler_function, timeout, sslctx)`](#sslsockettcp_serverhost-port-handler_function-timeout-sslctx)
+    + [`sslsocket:read(opts[, timeout])`](#sslsocketreadopts-timeout)
+    + [`sslsocket:write(data[, timeout])`](#sslsocketwritedata-timeout)
+    + [`sslsocket:shutdown([timeout])`](#sslsocketshutdowntimeout)
+    + [`sslsocket:close()`](#sslsocketclose)
+    + [`sslsocket:error()`](#sslsocketerror)
+    + [`sslsocket:errno()`](#sslsocketerrno)
+
 # Library to use ssl/tls
 
 ## Installation
