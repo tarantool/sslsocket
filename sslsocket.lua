@@ -19,14 +19,6 @@ ffi.cdef[[
  const SSL_METHOD *TLS_server_method(void);
  const SSL_METHOD *TLS_client_method(void);
 
- const SSL_METHOD *SSLv23_method(void);
- const SSL_METHOD *SSLv23_server_method(void);
- const SSL_METHOD *SSLv23_client_method(void);
-
- const SSL_METHOD *SSLv3_method(void);
- const SSL_METHOD *SSLv3_server_method(void);
- const SSL_METHOD *SSLv3_client_method(void);
-
  const SSL_METHOD *TLSv1_method(void);
  const SSL_METHOD *TLSv1_server_method(void);
  const SSL_METHOD *TLSv1_client_method(void);
@@ -50,9 +42,6 @@ ffi.cdef[[
  const SSL_METHOD *DTLSv1_2_method(void);
  const SSL_METHOD *DTLSv1_2_server_method(void);
  const SSL_METHOD *DTLSv1_2_client_method(void);
-
- int SSL_library_init(void);
- void SSL_load_error_strings(void);
 
  SSL_CTX *SSL_CTX_new(const SSL_METHOD *method);
  int SSL_CTX_up_ref(SSL_CTX *ctx);
@@ -94,15 +83,33 @@ ffi.cdef[[
         const void *needle, size_t needlelen);
 ]]
 
-ffi.C.SSL_library_init()
-ffi.C.SSL_load_error_strings()
+pcall(
+    function()
+        ffi.cdef([[
+          int SSL_library_init(void);
+          void SSL_load_error_strings(void);
+
+          const SSL_METHOD *SSLv23_method(void);
+          const SSL_METHOD *SSLv23_server_method(void);
+          const SSL_METHOD *SSLv23_client_method(void);
+
+          const SSL_METHOD *SSLv3_method(void);
+          const SSL_METHOD *SSLv3_server_method(void);
+          const SSL_METHOD *SSLv3_client_method(void);
+
+        ]])
+
+        ffi.C.SSL_library_init()
+        ffi.C.SSL_load_error_strings()
+end)
+
 
 local methods = {
-    sslv23 = ffi.C.SSLv23_method(),
-    sslv3 = ffi.C.SSLv3_method(),
     tlsv1 = ffi.C.TLSv1_method(),
     tlsv11 = ffi.C.TLSv1_1_method(),
+    tlsv12 = ffi.C.TLSv1_2_method(),
 }
+
 
 local function slice_wait(timeout, starttime)
     if timeout == nil then
@@ -117,7 +124,7 @@ local X509_FILETYPE_ASN1      =2
 local X509_FILETYPE_DEFAULT   =3
 
 local function ctx(method)
-    method = method or ffi.C.SSLv23_method()
+    method = method or methods[tlsv1]
 
     ffi.C.ERR_clear_error()
     local newctx =
@@ -196,7 +203,7 @@ function sslsocket.write(self, data, timeout)
             elseif ssl_error == SSL_ERROR_SYSCALL then
                 return nil, self.sock:error()
             elseif ssl_error == SSL_ERROR_ZERO_RETURN then
-                return nil, 'TLS channel closed'
+                return 0
             else
                 local error_string = ffi.string(ffi.C.ERR_error_string(ssl_error, nil))
                 return nil, error_string
@@ -214,7 +221,7 @@ function sslsocket.shutdown(self, timeout)
     local rc = ffi.C.SSL_shutdown(self.ssl) -- ignore result
     while rc < 0 do
         local mode
-        local ssl_error = ffi.C.SSL_get_error(self.ssl, num);
+        local ssl_error = ffi.C.SSL_get_error(self.ssl, rc);
         if ssl_error == SSL_ERROR_WANT_WRITE then
             mode = WAIT_FOR_WRITE
         elseif ssl_error == SSL_ERROR_WANT_READ then
@@ -222,7 +229,7 @@ function sslsocket.shutdown(self, timeout)
         elseif ssl_error == SSL_ERROR_SYSCALL then
             return nil, self.sock:error()
         elseif ssl_error == SSL_ERROR_ZERO_RETURN then
-            return nil, 'TLS channel closed'
+            return 0
         else
             local error_string = ffi.string(ffi.C.ERR_error_string(ssl_error, nil))
             return nil, error_string
@@ -295,7 +302,9 @@ end
 local function sysread(self, charptr, size, timeout)
     local start = clock.time()
 
-    local mode = WAIT_FOR_READ
+    local mode = rawget(self, 'first_state') or WAIT_FOR_READ
+    rawset(self, 'first_state', nil)
+
     while true do
         local rc = nil
         if mode == WAIT_FOR_READ then
@@ -326,7 +335,7 @@ local function sysread(self, charptr, size, timeout)
             elseif ssl_error == SSL_ERROR_SYSCALL then
                 return nil, self.sock:error()
             elseif ssl_error == SSL_ERROR_ZERO_RETURN then
-                return nil, 'TLS channel closed'
+                return 0
             else
                 local error_string = ffi.string(ffi.C.ERR_error_string(ssl_error, nil))
                 return nil, error_string
@@ -469,6 +478,7 @@ local function tcp_connect(host, port, timeout, sslctx)
     rawset(self, 'sock', sock)
     rawset(self, 'ctx', sslctx)
     rawset(self, 'ssl', ssl)
+    rawset(self, 'first_state', WAIT_FOR_WRITE)
 
     return self
 end

@@ -52,12 +52,12 @@ Setup crypto parts: certificate and private key
 ``` lua
 local rc = sslsocket.ctx_use_private_key_file(ctx, 'certificate.pem')
 if rc == false then
-    log.info('Certificate is invalid')
+    log.info('Private key is invalid')
     return
 end
 rc = sslsocket.ctx_use_certificate_file(ctx, 'certificate.pem')
 if rc == false then
-    log.info('Private key is invalid')
+    log.info('Certificate is invalid')
     return
 end
 ```

@@ -1,3 +1,4 @@
+rockspec_format = "3.0"
 package = "sslsocket"
 version = "scm-1"
 
@@ -24,4 +25,12 @@ build = {
     modules = {
         ["sslsocket"] = "sslsocket.lua",
     },
+}
+test_dependencies = {
+    'luatest',
+}
+
+test = {
+    type='command',
+    command='.rocks/bin/luatest -c'
 }
