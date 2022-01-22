@@ -7,7 +7,7 @@ local yaml = require('yaml')
 -- INITIALIZATION
 local function script_path()
     local str = debug.getinfo(2, "S").source:sub(2)
-    return str:match("(.*/)")
+    return str:match("(.*/)") or "."
 end
 local ctx = sslsocket.ctx(sslsocket.methods.tlsv1)
 local rc = sslsocket.ctx_use_private_key_file(ctx, script_path() .. 'certificate.pem')
